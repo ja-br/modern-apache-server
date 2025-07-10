@@ -1,0 +1,337 @@
+# DevOps Apache Web Server Project .gitignore
+
+# ================================
+# Terraform Files
+# ================================
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which are likely to contain sensitive data
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Include override files you do wish to add to version control using negated pattern
+# !example_override.tf
+
+# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
+*tfplan*
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# ================================
+# AWS & Cloud Files
+# ================================
+# AWS credentials
+.aws/
+aws-credentials.json
+aws-config.json
+
+# AWS CLI cache
+.aws-sam/
+
+# CloudFormation
+cloudformation-template.json
+
+# ================================
+# Docker Files
+# ================================
+# Docker volumes
+docker-volumes/
+.docker/
+
+# Docker Compose override
+docker-compose.override.yml
+docker-compose.prod.yml
+
+# ================================
+# Application & Apache Files
+# ================================
+# Apache logs (if stored locally)
+application/logs/
+*.log
+apache-logs/
+
+# Apache cache
+application/cache/
+.htaccess.bak
+
+# Application secrets
+application/secrets/
+application/.env
+application/.env.local
+application/.env.production
+
+# ================================
+# Monitoring & Observability
+# ================================
+# Prometheus data
+monitoring/prometheus-data/
+monitoring/grafana-data/
+
+# Log files
+*.log
+logs/
+monitoring/logs/
+
+# Grafana cache
+monitoring/grafana/data/
+
+# Alertmanager data
+monitoring/alertmanager-data/
+
+# ================================
+# CI/CD & Pipeline Files
+# ================================
+# GitHub Actions artifacts
+.github/workflows/secrets/
+
+# Build artifacts
+build/
+dist/
+target/
+
+# Test results
+test-results/
+coverage/
+.nyc_output/
+
+# Deployment artifacts
+deployment-package.zip
+deployment-artifacts/
+
+# ================================
+# SSL/TLS Certificates
+# ================================
+# Private keys
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Certificates (unless specifically needed in repo)
+*.crt
+*.cer
+*.cert
+
+# Let's Encrypt
+.well-known/
+
+# ================================
+# Security & Secrets
+# ================================
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Secret files
+secrets.yaml
+secrets.json
+*-secrets.yaml
+*-secrets.json
+
+# API keys
+api-keys.json
+credentials.json
+
+# SSH keys
+id_rsa
+id_rsa.pub
+*.ppk
+
+# ================================
+# Development Tools
+# ================================
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+.vim/
+.vimrc.local
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ================================
+# OS Generated Files
+# ================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Linux
+.directory
+.trash-*
+
+# ================================
+# Node.js (if any JS tools are used)
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package locks (choose one)
+package-lock.json
+yarn.lock
+
+# ================================
+# Python (if any Python tools are used)
+# ================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# ================================
+# Go (if any Go tools are used)
+# ================================
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# ================================
+# Java (if any Java tools are used)
+# ================================
+*.class
+*.jar
+*.war
+*.ear
+
+# ================================
+# Backup & Temporary Files
+# ================================
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+
+# Temporary directories
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Archive files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# ================================
+# Database Files
+# ================================
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# PostgreSQL
+*.dump
+
+# ================================
+# Local Development
+# ================================
+# Local configuration
+local-config.yaml
+local-settings.json
+development.yaml
+
+# Local scripts
+local-*.sh
+dev-*.sh
+
+# Local testing
+local-test/
+dev-test/
+
+# ================================
+# Documentation Build
+# ================================
+# Generated documentation
+docs/_build/
+docs/build/
+site/
+
+# ================================
+# Custom Project Specific
+# ================================
+# Custom application data
+custom-data/
+
+# Local monitoring setup
+local-monitoring/
+
+# Infrastructure state backup
+infra-backup/
+
+# Performance test results
+performance-results/
+
+# Load test artifacts
+load-test-results/
+
+# Security scan results
+security-scan-results/
