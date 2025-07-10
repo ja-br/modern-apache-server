@@ -1,0 +1,130 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ main ]
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types:
+      - completed
+
+env:
+  ECR_REPOSITORY: modern-apache-server
+  ECS_SERVICE: modern-apache-server-service
+  ECS_CLUSTER: modern-apache-server-cluster
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      working-directory: ./infrastructure/terraform
+      run: terraform init
+
+    - name: Terraform Plan
+      working-directory: ./infrastructure/terraform
+      run: terraform plan
+
+    - name: Terraform Apply
+      working-directory: ./infrastructure/terraform
+      run: terraform apply -auto-approve
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix=sha-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Deploy to ECS
+      run: |
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.ECS_SERVICE }} \
+          --force-new-deployment
+
+    - name: Wait for deployment
+      run: |
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }}
+
+    - name: Get deployment URL
+      id: get-url
+      run: |
+        URL=$(aws elbv2 describe-load-balancers \
+          --names modern-apache-server-alb \
+          --query 'LoadBalancers[0].DNSName' \
+          --output text)
+        echo "url=http://${URL}" >> $GITHUB_OUTPUT
+
+    - name: Verify deployment
+      run: |
+        sleep 30
+        curl -f ${{ steps.get-url.outputs.url }}/health || exit 1
+        echo "✅ Deployment successful!"
+        echo "🌐 Site available at: ${{ steps.get-url.outputs.url }}"
+
+    - name: Comment PR with deployment info
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🚀 **Deployment Complete!**
+            
+            📍 **Site URL:** ${{ steps.get-url.outputs.url }}
+            📊 **Health Check:** ${{ steps.get-url.outputs.url }}/health
+            📈 **Server Status:** ${{ steps.get-url.outputs.url }}/server-status
+            
+            ✅ All tests passed and deployment verified!`
+          })
+
+    - name: Create deployment status
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: context.payload.deployment?.id || 0,
+            state: 'success',
+            environment_url: '${{ steps.get-url.outputs.url }}',
+            description: 'Deployment completed successfully'
+          })
