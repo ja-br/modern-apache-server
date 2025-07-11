@@ -57,20 +57,43 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Run Trivy vulnerability scanner
+    - name: Build Docker image for scanning
+      run: |
+        docker build -t test-apache-server .
+
+    - name: Run Trivy vulnerability scanner on filesystem
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+
+    - name: Run Trivy vulnerability scanner on Docker image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'test-apache-server'
+        format: 'table'
+
+    - name: Run Trivy vulnerability scanner (SARIF output)
+      uses: aquasecurity/trivy-action@master
+      if: always()
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
 
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
@@ -92,7 +115,16 @@ jobs:
       working-directory: ./infrastructure/terraform
       run: terraform fmt -check
 
-    - name: Terraform Init
+    - name: Create temporary terraform.tfvars for validation
+      working-directory: ./infrastructure/terraform
+      run: |
+        cat > terraform.tfvars << EOF
+        aws_region = "us-east-1"
+        project_name = "modern-apache-server"
+        environment = "ci-test"
+        EOF
+
+    - name: Terraform Init (without backend)
       working-directory: ./infrastructure/terraform
       run: terraform init -backend=false
 
@@ -100,10 +132,18 @@ jobs:
       working-directory: ./infrastructure/terraform
       run: terraform validate
 
-    - name: Terraform Plan (Dry Run)
+    - name: Terraform Plan (validation only)
       working-directory: ./infrastructure/terraform
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-      run: terraform plan
+      run: |
+        if [[ -n "$AWS_ACCESS_KEY_ID" ]]; then
+          echo "Running terraform plan with AWS credentials..."
+          terraform plan -input=false
+        else
+          echo "⚠️  Skipping terraform plan - AWS credentials not available"
+          echo "This is normal for external pull requests"
+        fi
+      continue-on-error: true

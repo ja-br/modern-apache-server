@@ -34,6 +34,16 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
+        terraform_wrapper: false
+
+    - name: Create terraform.tfvars
+      working-directory: ./infrastructure/terraform
+      run: |
+        cat > terraform.tfvars << EOF
+        aws_region = "${{ secrets.AWS_REGION }}"
+        project_name = "modern-apache-server"
+        environment = "production"
+        EOF
 
     - name: Terraform Init
       working-directory: ./infrastructure/terraform
@@ -41,11 +51,17 @@ jobs:
 
     - name: Terraform Plan
       working-directory: ./infrastructure/terraform
-      run: terraform plan
+      run: terraform plan -input=false
 
     - name: Terraform Apply
       working-directory: ./infrastructure/terraform
-      run: terraform apply -auto-approve
+      run: terraform apply -auto-approve -input=false
+
+    - name: Get ECR repository URL
+      id: ecr-url
+      run: |
+        ECR_URL=$(cd infrastructure/terraform && terraform output -raw ecr_repository_url)
+        echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -55,7 +71,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        images: ${{ steps.ecr-url.outputs.ecr_url }}
         tags: |
           type=ref,event=branch
           type=sha,prefix=sha-
@@ -78,9 +94,11 @@ jobs:
 
     - name: Wait for deployment
       run: |
+        echo "⏳ Waiting for deployment to complete..."
         aws ecs wait services-stable \
           --cluster ${{ env.ECS_CLUSTER }} \
-          --services ${{ env.ECS_SERVICE }}
+          --services ${{ env.ECS_SERVICE }} \
+          --region ${{ secrets.AWS_REGION }}
 
     - name: Get deployment URL
       id: get-url
@@ -88,19 +106,41 @@ jobs:
         URL=$(aws elbv2 describe-load-balancers \
           --names modern-apache-server-alb \
           --query 'LoadBalancers[0].DNSName' \
-          --output text)
+          --output text \
+          --region ${{ secrets.AWS_REGION }})
         echo "url=http://${URL}" >> $GITHUB_OUTPUT
 
     - name: Verify deployment
       run: |
+        echo "🔍 Verifying deployment..."
         sleep 30
-        curl -f ${{ steps.get-url.outputs.url }}/health || exit 1
-        echo "✅ Deployment successful!"
-        echo "🌐 Site available at: ${{ steps.get-url.outputs.url }}"
+        
+        # Test health endpoint
+        if curl -f "${{ steps.get-url.outputs.url }}/health"; then
+          echo "✅ Health check passed!"
+        else
+          echo "❌ Health check failed!"
+          exit 1
+        fi
+        
+        # Test main page
+        if curl -f "${{ steps.get-url.outputs.url }}"; then
+          echo "✅ Main page accessible!"
+        else
+          echo "❌ Main page not accessible!"
+          exit 1
+        fi
+
+    - name: Deployment summary
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "🌐 Site URL: ${{ steps.get-url.outputs.url }}"
+        echo "❤️  Health Check: ${{ steps.get-url.outputs.url }}/health"
+        echo "📊 Server Status: ${{ steps.get-url.outputs.url }}/server-status"
 
     - name: Comment PR with deployment info
       if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           github.rest.issues.createComment({
@@ -114,17 +154,4 @@ jobs:
             📈 **Server Status:** ${{ steps.get-url.outputs.url }}/server-status
             
             ✅ All tests passed and deployment verified!`
-          })
-
-    - name: Create deployment status
-      uses: actions/github-script@v6
-      with:
-        script: |
-          github.rest.repos.createDeploymentStatus({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            deployment_id: context.payload.deployment?.id || 0,
-            state: 'success',
-            environment_url: '${{ steps.get-url.outputs.url }}',
-            description: 'Deployment completed successfully'
           })
